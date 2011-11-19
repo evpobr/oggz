@@ -830,6 +830,8 @@ oggz_comment_generate(OGGZ * oggz, long serialno,
     {0x04, 0x00, 0x00, 0x00};
   const unsigned char preamble_kate[9] =
     {0x81, 0x6b, 0x61, 0x74, 0x65, 0x00, 0x00, 0x00, 0x00};
+  const unsigned char preamble_opus[8] =
+    {'O', 'p',  'u', 's', 'T', 'a', 'g', 's'};
 
 
   switch(packet_type) {
@@ -848,6 +850,10 @@ oggz_comment_generate(OGGZ * oggz, long serialno,
     case OGGZ_CONTENT_KATE:
       preamble_length = sizeof preamble_kate;
       preamble = preamble_kate;
+      break;
+    case OGGZ_CONTENT_OPUS:
+      preamble_length = sizeof preamble_opus;
+      preamble = preamble_opus;
       break;
     case OGGZ_CONTENT_PCM:
     case OGGZ_CONTENT_SPEEX:
@@ -909,7 +915,7 @@ oggz_comment_generate(OGGZ * oggz, long serialno,
   return c_packet;
 }
 
-/* In Flac, OggPCM, Speex, Theora Vorbis, and Kate the comment packet will
+/* In Flac, OggPCM, Speex, Theora, Vorbis, Kate, and Opus the comment packet will
    be second in the stream, i.e. packetno=1, and it will have granulepos=0 */
 ogg_packet *
 oggz_comments_generate(OGGZ * oggz, long serialno,
