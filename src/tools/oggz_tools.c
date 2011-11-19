@@ -278,6 +278,22 @@ ot_kate_info (unsigned char * data, long len)
 }
 
 static char *
+ot_opus_info (unsigned char * data, long len)
+{
+  char * buf;
+
+  if (len < 19) return NULL;
+
+  buf = malloc (40);
+
+  snprintf (buf, 40,
+            "\tAudio-Channels: %d\n",
+	    data[9]);
+
+  return buf;
+}
+
+static char *
 ot_dirac_info (unsigned char * data, long len)
 {
   char * buf;
@@ -354,6 +370,7 @@ static const OTCodecInfoFunc codec_ident[] = {
   ot_celt_info,     /* CELT */
   ot_kate_info,     /* KATE */
   ot_dirac_info,    /* BBCD */
+  ot_opus_info,     /* OPUS */
   NULL              /* UNKNOWN */
 };
 

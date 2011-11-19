@@ -17,6 +17,7 @@ const char * const mime_type_names[] = {
   "audio/celt",
   "application/x-kate",
   "video/dirac",
+  "audio/x-opus",
   NULL /* UNKNOWN */
 };
 

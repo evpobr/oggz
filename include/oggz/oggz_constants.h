@@ -117,6 +117,7 @@ typedef enum OggzStreamContent {
   OGGZ_CONTENT_CELT,
   OGGZ_CONTENT_KATE,
   OGGZ_CONTENT_DIRAC,
+  OGGZ_CONTENT_OPUS,
   OGGZ_CONTENT_UNKNOWN
 } OggzStreamContent;
 

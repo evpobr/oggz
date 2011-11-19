@@ -396,6 +396,34 @@ auto_dirac (OGGZ * oggz, long serialno, unsigned char * data, long length, void 
 }
 
 static int
+auto_opus (OGGZ * oggz, long serialno, unsigned char * data, long length, void * user_data)
+{
+  unsigned char * header = data;
+  unsigned char nchannels;
+
+  if (length < 19) return 0;
+
+  nchannels = data[9];
+  if (nchannels < 1) {
+#ifdef DEBUG
+    printf("Opus header with 0 channels, invalid");
+#endif
+    return 0;
+  }
+
+#ifdef DEBUG
+  printf ("Got opus, %d channels\n", nchannels);
+#endif
+
+  oggz_set_granulerate (oggz, serialno, 48000, OGGZ_AUTO_MULT);
+  oggz_set_granuleshift (oggz, serialno, 0);
+
+  oggz_stream_set_numheaders (oggz, serialno, 2);
+
+  return 1;
+}
+
+static int
 auto_fisbone (OGGZ * oggz, long serialno, unsigned char * data, long length, void * user_data)
 {
   unsigned char * header = data;
@@ -556,6 +584,92 @@ auto_calc_celt (ogg_int64_t now, oggz_stream_t *stream, ogg_packet *op) {
   return 0;
 
 }
+
+/*
+ * The first two Opus packets are header and comment packets (granulepos = 0)
+ */
+
+static ogg_int64_t
+opus_packet_duration (ogg_packet *op)
+{
+  static const unsigned int durations[32] = {
+    480, 960, 1920, 2880, /* Silk NB */
+    480, 960, 1920, 2880, /* Silk MB */
+    480, 960, 1920, 2880, /* Silk WB */
+    480, 960,             /* Hybrid SWB */
+    480, 960,             /* Hybrid FB */
+    120, 240, 480, 960,   /* CELT NB */
+    120, 240, 480, 960,   /* CELT NB */
+    120, 240, 480, 960,   /* CELT NB */
+    120, 240, 480, 960,   /* CELT NB */
+  };
+  unsigned char toc, code, nframes;
+  int frame_duration, duration;
+
+  if (op->bytes < 1)
+    return 0;
+
+  toc = op->packet[0];
+  code = toc & 3;
+  frame_duration = durations[toc >> 3];
+
+  if (code == 3 && op->bytes < 2)
+    return 0;
+
+  switch (code) {
+    case 0: nframes = 1; break;
+    case 1: case 2: nframes = 2; break;
+    case 3: nframes = op->packet[1] & 63; break;
+  }
+
+  duration = frame_duration * nframes;
+  if (duration > 5760)
+    return 0;
+  return duration;
+}
+
+typedef struct {
+  int headers_encountered;
+  int encountered_first_data_packet;
+} auto_calc_opus_info_t;
+
+static ogg_int64_t
+auto_calc_opus(ogg_int64_t now, oggz_stream_t *stream, ogg_packet *op) {
+
+  auto_calc_opus_info_t *info
+          = (auto_calc_opus_info_t *)stream->calculate_data;
+
+  if (stream->calculate_data == NULL) {
+    stream->calculate_data = oggz_malloc(sizeof(auto_calc_opus_info_t));
+    if (stream->calculate_data == NULL) return -1;
+    info = stream->calculate_data;
+    info->encountered_first_data_packet = 0;
+    info->headers_encountered = 1;
+    return 0;
+  }
+
+  if (info->headers_encountered < 2) {
+    info->headers_encountered += 1;
+  } else {
+    info->encountered_first_data_packet = 1;
+  }
+
+  if (now > -1) {
+    return now;
+  }
+
+  if (info->encountered_first_data_packet) {
+    if (stream->last_granulepos > 0) {
+      return stream->last_granulepos + opus_packet_duration(op);
+    }
+
+    return -1;
+  }
+
+  return 0;
+
+}
+
 /*
  * Header packets are marked by a set MSB in the first byte.  Inter packets
  * are marked by a set 2MSB in the first byte.  Intra packets (keyframes)
@@ -1105,6 +1219,7 @@ const oggz_auto_contenttype_t oggz_auto_codec_ident[] = {
   {"CELT    ", 8, "CELT", auto_celt, auto_calc_celt, NULL},
   {"\200kate\0\0\0", 8, "Kate", auto_kate, NULL, NULL},
   {"BBCD\0", 5, "Dirac", auto_dirac, NULL, NULL},
+  {"OpusHead", 8, "Opus", auto_opus, auto_calc_opus, NULL},
   {"", 0, "Unknown", NULL, NULL, NULL}
 };
 
@@ -1227,6 +1342,11 @@ oggz_auto_read_comments (OGGZ * oggz, oggz_stream_t * stream, long serialno,
       if (op->bytes > 4 && (op->packet[0] & 0x7) == 4) {
         len = (op->packet[1]<<16) + (op->packet[2]<<8) + op->packet[3];
         offset = 4;
+      }
+      break;
+    case OGGZ_CONTENT_OPUS:
+      if (op->bytes > 8 && memcmp (op->packet, "OpusHead", 8) == 0) {
+        offset = 8;
       }
       break;
     default:
