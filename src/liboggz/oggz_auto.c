@@ -1345,7 +1345,7 @@ oggz_auto_read_comments (OGGZ * oggz, oggz_stream_t * stream, long serialno,
       }
       break;
     case OGGZ_CONTENT_OPUS:
-      if (op->bytes > 8 && memcmp (op->packet, "OpusHead", 8) == 0) {
+      if (op->bytes > 8 && memcmp (op->packet, "OpusTags", 8) == 0) {
         offset = 8;
       }
       break;
