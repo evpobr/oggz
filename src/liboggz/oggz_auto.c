@@ -424,6 +424,39 @@ auto_opus (OGGZ * oggz, long serialno, unsigned char * data, long length, void *
 }
 
 static int
+auto_vp8 (OGGZ * oggz, long serialno, unsigned char * data, long length, void * user_data)
+{
+  unsigned char * header = data;
+  ogg_int32_t gps_numerator, gps_denominator;
+
+  if (length < 26) return 0;
+
+  /* BOS header magic */
+  if (data[0] != 0x4f) return 0;
+  if (memcmp(data+1, "VP80", 4)) return 0;
+  if (data[5] != 1) return 0;
+
+  if (data[6] != 1) {
+#ifdef DEBUG
+    printf("VP8 major version %u unsupported\n", data[6]);
+#endif
+    return 0;
+  }
+
+  gps_numerator = int32_be_at(&header[18]);
+  gps_denominator = int32_be_at(&header[22]);
+
+  oggz_set_granulerate (oggz, serialno, gps_numerator,
+                        OGGZ_AUTO_MULT * gps_denominator);
+  oggz_set_granuleshift (oggz, serialno, 32);
+
+  /* The Vorbis comment header is optional for VP8 */
+  oggz_stream_set_numheaders (oggz, serialno, 1);
+
+  return 1;
+}
+
+static int
 auto_fisbone (OGGZ * oggz, long serialno, unsigned char * data, long length, void * user_data)
 {
   unsigned char * header = data;
@@ -669,6 +702,83 @@ auto_calc_opus(ogg_int64_t now, oggz_stream_t *stream, ogg_packet *op) {
   return 0;
 
 }
+
+typedef struct {
+  int headers_encountered;
+  int encountered_first_data_packet;
+} auto_calc_vp8_info_t;
+
+static ogg_int64_t
+auto_calc_vp8(ogg_int64_t now, oggz_stream_t *stream, ogg_packet *op) {
+  int header, keyframe, visible;
+
+  auto_calc_vp8_info_t *info
+          = (auto_calc_vp8_info_t *)stream->calculate_data;
+
+  if (stream->calculate_data == NULL) {
+    stream->calculate_data = oggz_malloc(sizeof(auto_calc_vp8_info_t));
+    if (stream->calculate_data == NULL) return -1;
+    info = stream->calculate_data;
+    info->encountered_first_data_packet = 0;
+    info->headers_encountered = 1;
+    return 0;
+  }
+
+  /* headers may be repeated interleaved between data packets */
+  header = op->bytes == 0 || op->packet[0] == 0x4f;
+  keyframe = !header && op->bytes > 0 && ((op->packet[0] & 1) == 0);
+  visible = !header && op->bytes > 0 && (((op->packet[0]>>4) & 1) != 0);
+
+  if (header) {
+    info->headers_encountered += 1;
+  } else {
+    info->encountered_first_data_packet = 1;
+  }
+
+  if (now > -1) {
+    return now;
+  }
+
+  if (info->encountered_first_data_packet) {
+    if (stream->last_granulepos > 0) {
+      if (header) {
+        return stream->last_granulepos;
+      } else {
+        /* add 1 to dist, zero if keyframes
+         * add 1 to invcnt if invisible, set to -1 if visible
+         * add 1 to pts if visible
+         */
+        ogg_int64_t pts = stream->last_granulepos >> 32;
+        ogg_int64_t invcnt = (stream->last_granulepos >> 30) & 3;
+        ogg_int64_t dist = (stream->last_granulepos >> 3) & 0x07ffffff;
+        ogg_int64_t granpos;
+
+        if (keyframe)
+          dist = 0;
+        else
+          dist++;
+
+        if (visible) {
+          pts++;
+          invcnt = 3;
+        } else {
+          if (invcnt == 3)
+            invcnt = 0;
+          else
+            invcnt++;
+        }
+
+        granpos = (pts<<32) | (invcnt<<30) | (dist<<3) | 0;
+        return granpos;
+      }
+    }
+
+    return -1;
+  }
+
+  return 0;
+}
+
 
 /*
  * Header packets are marked by a set MSB in the first byte.  Inter packets
@@ -1220,6 +1330,7 @@ const oggz_auto_contenttype_t oggz_auto_codec_ident[] = {
   {"\200kate\0\0\0", 8, "Kate", auto_kate, NULL, NULL},
   {"BBCD\0", 5, "Dirac", auto_dirac, NULL, NULL},
   {"OpusHead", 8, "Opus", auto_opus, auto_calc_opus, NULL},
+  {"\x4fVP80", 5, "VP8", auto_vp8, auto_calc_vp8, NULL},
   {"", 0, "Unknown", NULL, NULL, NULL}
 };
 
@@ -1347,6 +1458,11 @@ oggz_auto_read_comments (OGGZ * oggz, oggz_stream_t * stream, long serialno,
     case OGGZ_CONTENT_OPUS:
       if (op->bytes > 8 && memcmp (op->packet, "OpusTags", 8) == 0) {
         offset = 8;
+      }
+      break;
+    case OGGZ_CONTENT_VP8:
+      if (op->bytes > 7 && memcmp (op->packet, "\x4fVP80\002 ", 7) == 0) {
+        offset = 7;
       }
       break;
     default:

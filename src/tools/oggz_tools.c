@@ -42,6 +42,8 @@
 #include "dirac.h"
 #include "oggz_tools_dirac.h"
 
+#include "oggz_tools_vp8.h"
+
 #if defined (WIN32) || defined (__EMX__)
 #include <fcntl.h>
 #include <io.h>
@@ -294,6 +296,27 @@ ot_opus_info (unsigned char * data, long len)
 }
 
 static char *
+ot_vp8_info (unsigned char * data, long len)
+{
+  char * buf;
+  const size_t nbytes = 192;
+
+  if (len < 26) return NULL;
+
+  buf = malloc (nbytes);
+
+  snprintf (buf, nbytes,
+	    "\tVP8-Mapping-Version: %u.%u\n"
+	    "\tVideo-Framerate: %.3f fps\n"
+	    "\tVideo-Width: %d\n\tVideo-Height: %d\n",
+            data[6], data[7],
+	    (double)INT32_BE_AT(&data[18])/ (double)INT32_BE_AT(&data[22]),
+	    INT16_BE_AT(&data[8]), INT16_BE_AT(&data[10]));
+
+  return buf;
+}
+
+static char *
 ot_dirac_info (unsigned char * data, long len)
 {
   char * buf;
@@ -371,6 +394,7 @@ static const OTCodecInfoFunc codec_ident[] = {
   ot_kate_info,     /* KATE */
   ot_dirac_info,    /* BBCD */
   ot_opus_info,     /* OPUS */
+  ot_vp8_info,      /* VP8 */
   NULL              /* UNKNOWN */
 };
 
@@ -476,6 +500,17 @@ ot_dirac_gpos_parse (ogg_int64_t iframe, ogg_int64_t pframe,
   dg->dt = (ogg_int64_t)dg->pt - dg->delay;
 }
 
+void
+ot_vp8_gpos_parse (ogg_int64_t iframe, ogg_int64_t pframe,
+                   struct ot_vp8_gpos * vg)
+{
+  vg->pts = iframe;
+  vg->invcnt = (pframe >> 30) & 3;
+  if (vg->invcnt == 3) /* -1 on 2 bits */
+    vg->invcnt = -1;
+  vg->dist = (pframe >> 3) & 0x7ffffff;
+}
+
 int
 ot_fprint_granulepos (FILE * stream, OGGZ * oggz, long serialno,
                       ogg_int64_t granulepos)
@@ -486,20 +521,28 @@ ot_fprint_granulepos (FILE * stream, OGGZ * oggz, long serialno,
     ret = fprintf (stream, "%" PRId64, granulepos);
   } else {
     ogg_int64_t iframe, pframe;
+    OggzStreamContent content;
+
     iframe = granulepos >> granuleshift;
     pframe = granulepos - (iframe << granuleshift);
 
-    if (oggz_stream_get_content (oggz, serialno) != OGGZ_CONTENT_DIRAC) {
-      ret = fprintf (stream, "%" PRId64 "|%" PRId64, iframe, pframe);
-    } else {
+    content = oggz_stream_get_content (oggz, serialno);
+    if (content == OGGZ_CONTENT_DIRAC) {
       struct ot_dirac_gpos dg;
       ot_dirac_gpos_parse (iframe, pframe, &dg);
       ret = fprintf (stream,
 		     "(pt:%u,dt:%" PRId64 ",dist:%hu,delay:%hu)",
 		     dg.pt, dg.dt, dg.dist, dg.delay);
+    } else if (content == OGGZ_CONTENT_VP8) {
+      struct ot_vp8_gpos vg;
+      ot_vp8_gpos_parse (iframe, pframe, &vg);
+      ret = fprintf (stream,
+		     "(pts:%u,invcnt:%hd,dist:%hu)",
+		     vg.pts, vg.invcnt, vg.dist);
+    } else {
+      ret = fprintf (stream, "%" PRId64 "|%" PRId64, iframe, pframe);
     }
-
-}
+  }
 
   return ret;
 }

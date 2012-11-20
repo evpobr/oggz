@@ -744,6 +744,59 @@ read_dirac (OGGZ * oggz, const ogg_page * og, long serialno, void * user_data)
   return OGGZ_CONTINUE;
 }
 
+static int
+read_vp8 (OGGZ * oggz, const ogg_page * og, long serialno, void * user_data)
+{
+  OCState * state = (OCState *)user_data;
+  OCTrackState * ts;
+  OCPageAccum * pa;
+  double page_time;
+  ogg_int64_t granulepos, pts, dist, keyframe;
+  int accum_size;
+
+  page_time = oggz_tell_units (oggz) / 1000.0;
+
+  ts = oggz_table_lookup (state->tracks, serialno);
+  accum_size = oggz_table_size (ts->page_accum);
+
+  if (page_time >= state->start) {
+    /* Glue in fisbones, write out accumulated pages */
+    chop_glue (state, oggz);
+
+    /* Switch to the plain page reader */
+    oggz_set_read_page (oggz, serialno, read_plain, state);
+    return read_plain (oggz, og, serialno, user_data);
+  } /* else { ... */
+
+  granulepos = ogg_page_granulepos (OGG_PAGE_CONST(og));
+  if (granulepos != -1) {
+    pts = granulepos >> 32;
+    dist = (granulepos >> 3) & 0x7ffffff;
+    keyframe = pts - dist;
+
+    if (keyframe != ts->prev_keyframe) {
+      if (ogg_page_continued(OGG_PAGE_CONST(og))) {
+        /* If this new-keyframe page is continued, advance the page accumulator,
+         * ie. recover earlier pages from this new GOP */
+        accum_size = track_state_advance_page_accum (ts);
+      } else {
+        /* Otherwise, just clear the page accumulator */
+        track_state_remove_page_accum (ts);
+        accum_size = 0;
+      }
+
+      /* Record this as prev_keyframe */
+      ts->prev_keyframe = keyframe;
+    }
+  }
+
+  /* Add a copy of this to the page accumulator */
+  pa = page_accum_new (og, page_time);
+  oggz_table_insert (ts->page_accum, accum_size, pa);
+
+  return OGGZ_CONTINUE;
+}
+
 /*
  * OggzReadPageCallback read_headers
  *
@@ -781,6 +834,8 @@ read_headers (OGGZ * oggz, const ogg_page * og, long serialno, void * user_data)
         oggz_set_read_page (oggz, serialno, read_plain, state);
       } else if (content_type == OGGZ_CONTENT_DIRAC) {
         oggz_set_read_page (oggz, serialno, read_dirac, state);
+      } else if (content_type == OGGZ_CONTENT_VP8) {
+        oggz_set_read_page (oggz, serialno, read_vp8, state);
       } else {
         oggz_set_read_page (oggz, serialno, read_gs, state);
       }

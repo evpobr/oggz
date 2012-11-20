@@ -168,15 +168,21 @@ gp_to_granule (OGGZ * oggz, long serialno, ogg_int64_t granulepos)
 {
   int granuleshift;
   ogg_int64_t iframe, pframe, granule;
+  OggzStreamContent content;
 
   granuleshift = oggz_get_granuleshift (oggz, serialno);
+  content = oggz_stream_get_content (oggz, serialno);
 
-  iframe = granulepos >> granuleshift;
-  pframe = granulepos - (iframe << granuleshift);
-  granule = iframe+pframe;
+  if (content == OGGZ_CONTENT_VP8) {
+    granule = granulepos >> granuleshift;
+  } else {
+    iframe = granulepos >> granuleshift;
+    pframe = granulepos - (iframe << granuleshift);
+    granule = iframe+pframe;
 
-  if (oggz_stream_get_content (oggz, serialno) == OGGZ_CONTENT_DIRAC)
-    granule >>= 9;
+    if (content == OGGZ_CONTENT_DIRAC)
+      granule >>= 9;
+  }
 
   return granule;
 }

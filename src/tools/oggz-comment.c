@@ -268,9 +268,9 @@ static int
 read_packet (OGGZ * oggz, oggz_packet * zp, long serialno, void * user_data)
 {
   OCData * ocdata = (OCData *)user_data;
-  ogg_packet * op = &zp->op;
+  ogg_packet * op = &zp->op, * copy_op = NULL;
   const char * vendor;
-  int flush;
+  int flush, copy_op_flush = 0;
   int ret;
 
 #ifdef USE_FLUSH_NEXT
@@ -290,6 +290,19 @@ read_packet (OGGZ * oggz, oggz_packet * zp, long serialno, void * user_data)
 
   /* Edit the packet data if required */
   if (filter_stream_p (ocdata, serialno) && op->packetno == 1) {
+    /* For VP8, the comment packet is optional, so we may be in the case
+       where we need to write comments, but there is no comments packet
+       in the stream. In that case, packetno 1 will not be a comments
+       packet to replace, so we must insert the comments, and then copy
+       packetno 1 (which will now be packetno 2) to the output */
+    if (oggz_stream_get_content (oggz, serialno) == OGGZ_CONTENT_VP8 &&
+        oggz_stream_get_numheaders (oggz, serialno) == 1) {
+      copy_op = op;
+      copy_op->packetno = -1;
+      copy_op_flush = flush;
+      flush = 1;
+    }
+
     vendor = oggz_comment_get_vendor (ocdata->reader, serialno);
 
     /* Copy across the comments, unless "delete comments before editing" */
@@ -307,10 +320,17 @@ read_packet (OGGZ * oggz, oggz_packet * zp, long serialno, void * user_data)
   }
 
   /* Feed the packet into the writer */
+  op->packetno = -1; /* rewrite packetno in case we need to insert a packet */
   if ((ret = oggz_write_feed (ocdata->writer, op, serialno, flush, NULL)) != 0) 
     fprintf (stderr, "oggz_write_feed: %d\n", ret);
 
-  return more_headers (ocdata, op, serialno);
+  ret = more_headers (ocdata, op, serialno);
+  if (ret == OGGZ_CONTINUE && copy_op) {
+    if ((ret = oggz_write_feed (ocdata->writer, copy_op, serialno, copy_op_flush, NULL)) != 0) 
+      fprintf (stderr, "oggz_write_feed: %d\n", ret);
+  }
+
+  return ret;
 }
 
 static int
@@ -371,7 +391,7 @@ read_comments(OGGZ *oggz, oggz_packet * zp, long serialno, void *user_data)
   OCData * ocdata = (OCData *)user_data;
   ogg_packet * op = &zp->op;
   const OggzComment * comment;
-  const char * codec_name;
+  const char * codec_name, * vendor;
 
   if (filter_stream_p (ocdata, serialno) && op->packetno == 1) {
     codec_name = oggz_stream_get_content_type(oggz, serialno);
@@ -381,7 +401,8 @@ read_comments(OGGZ *oggz, oggz_packet * zp, long serialno, void *user_data)
       printf ("???: serialno %010lu\n", serialno);
     }
 
-    printf("\tVendor: %s\n", oggz_comment_get_vendor(oggz, serialno));
+    vendor = oggz_comment_get_vendor(oggz, serialno);
+    if (vendor) printf("\tVendor: %s\n", vendor);
 
     for (comment = oggz_comment_first(oggz, serialno); comment;
          comment = oggz_comment_next(oggz, serialno, comment))

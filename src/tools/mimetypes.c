@@ -18,6 +18,7 @@ const char * const mime_type_names[] = {
   "application/x-kate",
   "video/dirac",
   "audio/x-opus",
+  "video/vp8",
   NULL /* UNKNOWN */
 };
 
