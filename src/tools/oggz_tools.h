@@ -68,6 +68,8 @@ void ot_init (void);
  */
 void ot_print_short_options (char * optstring);
 
+#ifdef HAVE_GETOPT_LONG
 void ot_print_options (struct option long_options[], char * optstring);
+#endif
 
 #endif /* __OGGZ_TOOLS_H__ */
