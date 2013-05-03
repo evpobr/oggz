@@ -1,13 +1,13 @@
 # Process this file with autoconf to produce a configure script.
-AC_INIT
-AC_CONFIG_SRCDIR([src/liboggz/oggz.c])
+AC_PREREQ([2.53])
 
-AC_PREREQ(2.53)
+AC_INIT([liboggz],[1.1.1],[ogg-dev@xiph.org])
+AC_CONFIG_SRCDIR([src/liboggz/oggz.c])
 
 AC_CANONICAL_TARGET
 
-AM_INIT_AUTOMAKE(liboggz, 1.1.1)
-AM_CONFIG_HEADER(config.h)
+AM_INIT_AUTOMAKE
+AM_MAINTAINER_MODE([enable])
 
 ################################################################################
 # Set the shared versioning info, according to section 6.3 of the libtool info #
@@ -473,7 +473,7 @@ AC_SUBST(BINDIR)
 AC_SUBST(SHLIB_VERSION_ARG)
 AC_SUBST(SHARED_VERSION_INFO)
 
-AC_OUTPUT([
+AC_CONFIG_FILES([
 Makefile
 doc/Makefile
 doc/Doxyfile
@@ -492,6 +492,9 @@ apache/oggz-chop.conf
 oggz.pc
 oggz-uninstalled.pc
 ])
+
+AC_CONFIG_HEADERS([config.h])
+AC_OUTPUT
 
 AC_MSG_RESULT([
 ------------------------------------------------------------------------
