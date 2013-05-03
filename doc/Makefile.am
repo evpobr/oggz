@@ -1,5 +1,3 @@
-docdir=$(prefix)/share/doc/@PACKAGE@
-
 man_MANS = oggz.1 oggz-diff.1 oggz-dump.1 oggz-info.1 oggz-known-codecs.1 oggz-merge.1 oggz-chop.1 \
 	oggz-sort.1 oggz-rip.1 oggz-comment.1 oggz-scan.1 oggz-validate.1 oggz-codecs.1
 

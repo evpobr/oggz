@@ -466,7 +466,7 @@ else
 AS_AC_EXPAND(LIBDIR, ${libdir})
 AS_AC_EXPAND(INCLUDEDIR, ${includedir})
 AS_AC_EXPAND(BINDIR, ${bindir})
-AS_AC_EXPAND(DOCDIR, ${datadir}/doc)
+AS_AC_EXPAND(DOCDIR, ${docdir})
 
 AC_SUBST(BINDIR)
 
@@ -513,7 +513,7 @@ AC_MSG_RESULT([
     liboggz: ..................... ${LIBDIR}
     Tools: ....................... ${BINDIR}
     C header files: .............. ${INCLUDEDIR}/oggz
-    Documentation: ............... ${DOCDIR}/$PACKAGE
+    Documentation: ............... ${DOCDIR}
 
   Building:
 
