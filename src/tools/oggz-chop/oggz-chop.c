@@ -463,7 +463,8 @@ write_accum (OCState * state)
   OCPageAccum * pa;
   OggzTable * candidates;
   long serialno, min_serialno;
-  int i, ntracks, ncandidates=0, remaining=0, min_i, cn, min_cn;
+  int i, ntracks, ncandidates=0, remaining=0, min_i;
+  ptrdiff_t cn, min_cn;
   ogg_page * og, * min_og;
   double min_time;
 
@@ -503,7 +504,7 @@ write_accum (OCState * state)
     min_og = NULL;
     min_serialno = -1;
     for (i=0; i < ncandidates; i++) {
-      cn = ((int) oggz_table_nth (candidates, i, &serialno)) - CN_OFFSET;
+      cn = ((ptrdiff_t) oggz_table_nth (candidates, i, &serialno)) - CN_OFFSET;
       ts = oggz_table_lookup (state->tracks, serialno);
       if (ts && ts->page_accum) {
         if (cn < oggz_table_size (ts->page_accum)) {

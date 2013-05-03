@@ -255,7 +255,8 @@ read_page (OGGZ * oggz, const ogg_page * og, long serialno, void * user_data)
   OVData * ovdata = (OVData *)user_data;
   ogg_int64_t gpos = ogg_page_granulepos((ogg_page *)og);
   OggzStreamContent content_type;
-  int packets, packetno, headers, ret = 0;
+  int packets, ret = 0;
+  ptrdiff_t packetno, headers;
 
   if (ovdata->chain_ended) {
     ovdata_clear (ovdata);
@@ -301,7 +302,7 @@ read_page (OGGZ * oggz, const ogg_page * og, long serialno, void * user_data)
       fprintf (stderr, "serialno %010lu: missing *** bos\n", serialno);
     }
 
-    packetno = (int)oggz_table_lookup (ovdata->packetno, serialno);
+    packetno = (ptrdiff_t)oggz_table_lookup (ovdata->packetno, serialno);
     headers = oggz_stream_get_numheaders (oggz, serialno);
     if (packetno < headers-1) {
       /* The previous page was headers, and more are expected */
