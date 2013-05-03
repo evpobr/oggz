@@ -29,7 +29,7 @@ endif
 
 endif
 
-noinst_HEADERS = oggz_tools.h oggz_tools_dirac.h skeleton.h mimetypes.h
+noinst_HEADERS = oggz_tools.h oggz_tools_dirac.h oggz_tools_vp8.h skeleton.h mimetypes.h
 
 # Programs to build
 bin_PROGRAMS = $(oggz_any_programs) $(oggz_read_programs) $(oggz_rw_programs)
