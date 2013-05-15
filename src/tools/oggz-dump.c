@@ -729,9 +729,15 @@ main (int argc, char ** argv)
 
  exit_ok:
   oddata_delete (oddata);
+  if (outfilename != NULL) {
+    fclose (outfile);
+  }
   exit (0);
 
  exit_err:
   oddata_delete (oddata);
+  if (outfilename != NULL) {
+    fclose (outfile);
+  }
   exit (1);
 }
