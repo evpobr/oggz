@@ -664,6 +664,10 @@ oggz_comments_decode (OGGZ * oggz, long serialno,
          oggz_free (nvalue);
       }
 
+      /* If we nulled out an equal sign, put it back. */
+      if (value)
+         value[-1] = '=';
+
       c+=len;
    }
 
