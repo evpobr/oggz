@@ -125,6 +125,12 @@ int16_be_at (unsigned char *c)
   return (c [0] <<  8) | c [1];
 }
 
+static unsigned short
+int16_le_at (unsigned char *c)
+{
+  return c [0] | (c [1] <<  8);
+}
+
 static ogg_int32_t
 int32_le_at (unsigned char *c)
 {

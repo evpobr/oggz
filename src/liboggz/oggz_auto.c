@@ -417,6 +417,7 @@ auto_opus (OGGZ * oggz, long serialno, unsigned char * data, long length, void *
 
   oggz_set_granulerate (oggz, serialno, 48000, OGGZ_AUTO_MULT);
   oggz_set_granuleshift (oggz, serialno, 0);
+  oggz_set_first_granule (oggz, serialno, int16_le_at(&data[10]));  /* pre-skip */
 
   oggz_stream_set_numheaders (oggz, serialno, 2);
 
@@ -664,6 +665,7 @@ opus_packet_duration (ogg_packet *op)
 typedef struct {
   int headers_encountered;
   int encountered_first_data_packet;
+  int queued_duration;
 } auto_calc_opus_info_t;
 
 static ogg_int64_t
@@ -678,6 +680,7 @@ auto_calc_opus(ogg_int64_t now, oggz_stream_t *stream, ogg_packet *op) {
     info = stream->calculate_data;
     info->encountered_first_data_packet = 0;
     info->headers_encountered = 1;
+    info->queued_duration = 0;
     return 0;
   }
 
@@ -692,15 +695,41 @@ auto_calc_opus(ogg_int64_t now, oggz_stream_t *stream, ogg_packet *op) {
   }
 
   if (info->encountered_first_data_packet) {
+    ogg_int64_t packet_duration = opus_packet_duration(op);
     if (stream->last_granulepos > 0) {
-      return stream->last_granulepos + opus_packet_duration(op);
+      ogg_int64_t this_gp = stream->last_granulepos + packet_duration;
+      return this_gp > stream->page_granulepos  /* end trimming */
+        && stream->page_granulepos >= stream->last_granulepos
+        ? stream->page_granulepos : this_gp;
     }
-
+    info->queued_duration += packet_duration;
     return -1;
   }
 
   return 0;
 
+}
+
+static ogg_int64_t
+auto_rcalc_opus(ogg_int64_t next_packet_gp, oggz_stream_t *stream,
+                ogg_packet *this_packet, ogg_packet *next_packet) {
+
+  auto_calc_opus_info_t *info = (auto_calc_opus_info_t *)stream->calculate_data;
+  ogg_int64_t this_packet_gp;
+
+  /* calculate granulepos in reverse, adjusting for end trimming */
+  if (next_packet_gp >= info->queued_duration) {
+    this_packet_gp = next_packet_gp - opus_packet_duration(next_packet);
+    if (this_packet_gp < info->queued_duration) {
+      this_packet_gp = info->queued_duration;  /* packet truncated */
+    }
+    info->queued_duration = 0;
+  } else {
+    /* multiple packets truncated */
+    this_packet_gp = next_packet_gp;
+    info->queued_duration -= opus_packet_duration(this_packet);
+  }
+  return this_packet_gp;
 }
 
 typedef struct {
@@ -1175,7 +1204,7 @@ auto_calc_vorbis(ogg_int64_t now, oggz_stream_t *stream, ogg_packet *op) {
 
 }
 
-ogg_int64_t
+static ogg_int64_t
 auto_rcalc_vorbis(ogg_int64_t next_packet_gp, oggz_stream_t *stream,
                   ogg_packet *this_packet, ogg_packet *next_packet) {
 
@@ -1329,7 +1358,7 @@ const oggz_auto_contenttype_t oggz_auto_codec_ident[] = {
   {"CELT    ", 8, "CELT", auto_celt, auto_calc_celt, NULL},
   {"\200kate\0\0\0", 8, "Kate", auto_kate, NULL, NULL},
   {"BBCD\0", 5, "Dirac", auto_dirac, NULL, NULL},
-  {"OpusHead", 8, "Opus", auto_opus, auto_calc_opus, NULL},
+  {"OpusHead", 8, "Opus", auto_opus, auto_calc_opus, auto_rcalc_opus},
   {"\x4fVP80", 5, "VP8", auto_vp8, auto_calc_vp8, NULL},
   {"", 0, "Unknown", NULL, NULL, NULL}
 };

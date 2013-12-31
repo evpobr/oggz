@@ -125,6 +125,8 @@ oggz_metric_default_linear (OGGZ * oggz, long serialno, ogg_int64_t granulepos,
   stream = oggz_get_stream (oggz, serialno);
   if (stream == NULL) return -1;
 
+  granulepos = granulepos <= stream->first_granule
+    ? 0 : granulepos - stream->first_granule;
   return (stream->granulerate_d * granulepos / stream->granulerate_n);
 }
 
