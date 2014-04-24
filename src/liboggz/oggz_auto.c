@@ -665,7 +665,7 @@ opus_packet_duration (ogg_packet *op)
 typedef struct {
   int headers_encountered;
   int encountered_first_data_packet;
-  int queued_duration;
+  ogg_int64_t queued_duration;
 } auto_calc_opus_info_t;
 
 static ogg_int64_t
