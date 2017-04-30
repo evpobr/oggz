@@ -38,14 +38,6 @@
  * Allows Large File Sizes on systems supporting 64-bit off_t types.
  */
 
-#ifdef _WIN32
-  /* MSVC/Borland & Cygwin */
-   typedef off_t oggz_off_t;
-
-#define PRI_OGGZ_OFF_T "l"
-
-#else
 #include <oggz/oggz_off_t_generated.h>
-#endif
 
 #endif /* __OGGZ_OFF_T__ */

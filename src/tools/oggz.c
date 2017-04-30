@@ -34,7 +34,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
+#ifdef HAVE_IO_H
+#include <io.h>
+#endif
+#ifdef HAVE_PROCESS_H
+#include <process.h>
+#endif
 
 /* #define DEBUG */
 

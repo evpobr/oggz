@@ -36,7 +36,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef WIN32
+#ifdef HAVE_STRINGS_H
 #include <strings.h>
 #endif
 
@@ -53,10 +53,6 @@
 #include "oggz_tools.h"
 
 /* #define DEBUG */
-
-#ifdef WIN32                                                                   
-#define strcasecmp _stricmp
-#endif 
 
 typedef struct {
   OggzReadPacket read_packet;

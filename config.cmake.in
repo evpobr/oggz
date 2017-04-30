@@ -1,0 +1,29 @@
+#cmakedefine HAVE_STDINT_H
+#cmakedefine HAVE_INTTYPES_H
+#cmakedefine HAVE_UNISTD_H
+#cmakedefine HAVE_IO_H
+#cmakedefine HAVE_GETOPT_H
+#cmakedefine HAVE_STRINGS_H
+#cmakedefine HAVE_STRCASECMP_H
+#cmakedefine HAVE__STRICMP
+#cmakedefine HAVE_SYS_TYPES_H
+#cmakedefine HAVE_PROCESS_H
+#if ((!defined HAVE_STRCASECMP_H) && (defined HAVE__STRICMP))
+#define strcasecmp _stricmp
+#endif
+#cmakedefine HAVE_TIMEZONE
+#cmakedefine HAVE__TIMEZONE
+#if ((!defined HAVE_TIMEZONE) && (defined HAVE__TIMEZONE))
+#define timezone _timezone
+#endif
+#cmakedefine WORDS_BIGENDIAN
+#cmakedefine01 OGGZ_CONFIG_READ
+#cmakedefine01 OGGZ_CONFIG_WRITE
+#define PACKAGE "@PACKAGE@"
+#define PACKAGE_BUGREPORT "@PACKAGE_BUGREPORT@"
+#define PACKAGE_NAME "@PACKAGE_NAME@"
+#define VERSION "@VERSION@"
+#define PACKAGE_VERSION "@PACKAGE_VERSION@"
+#define PACKAGE_STRING "@PACKAGE_STRING@"
+#define PACKAGE_TARNAME "@PACKAGE_TARNAME@"
+#define PACKAGE_URL "@PACKAGE_URL@"

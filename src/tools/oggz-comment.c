@@ -32,9 +32,14 @@
 /* Kangyuan Niu: original version (Aug 2007) */
 /* Conrad Parker: modified based on modify-headers example (January 2008) */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef HAVE_STRINGS_H
+#include <strings.h>
+#endif
 #include <errno.h>
 #include <getopt.h>
 

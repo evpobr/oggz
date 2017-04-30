@@ -39,7 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifndef WIN32
+#ifdef HAVE_STRINGS_H
 #include <strings.h>
 #endif
 #include <fcntl.h>
@@ -50,10 +50,6 @@
 
 #include "oggz/oggz.h"
 #include "oggz_tools.h"
-
-#ifdef WIN32                                                                   
-#define strcasecmp _stricmp
-#endif  
 
 #define READ_SIZE 4096
 #define WRITE_SIZE 4096
