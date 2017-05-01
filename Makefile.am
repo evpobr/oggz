@@ -26,7 +26,7 @@ EXTRA_DIST = PATCHES \
 	apache-install.sh \
 	bash-completion/oggz \
 	$(SYMBIAN_extra_dist) $(WIN32_extra_dist) .travis.yml .appveyor.yml \
-	.gitignore .gitattributes
+	.gitignore .gitattributes .editorconfig
 
 # Extra files to distribute for the Symbian build.
 SYMBIAN_extra_dist = \
