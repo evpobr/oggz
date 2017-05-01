@@ -1,0 +1,17 @@
+language: c
+sudo: false
+os:
+  - linux
+addons:
+  apt:
+    packages:
+      - libogg-dev
+dist: trusty
+compiler: gcc
+script:
+  - mkdir cmake-build
+  - cd cmake-build
+  - cmake .. -DBUILD_SHARED_LIBS:BOOL=ON -DCMAKE_INSTALL_PREFIX:PATH=~
+  - cmake --build .
+  - make install
+  - ctest -V
