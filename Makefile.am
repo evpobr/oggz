@@ -25,7 +25,7 @@ EXTRA_DIST = PATCHES \
 	oggz.pc.in oggz-uninstalled.pc.in \
 	apache-install.sh \
 	bash-completion/oggz \
-	$(SYMBIAN_extra_dist) $(WIN32_extra_dist) .travis.yml \
+	$(SYMBIAN_extra_dist) $(WIN32_extra_dist) .travis.yml .appveyor.yml \
 	.gitignore .gitattributes
 
 # Extra files to distribute for the Symbian build.
