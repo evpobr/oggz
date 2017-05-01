@@ -33,7 +33,7 @@ time_t
 httpdate_parse (char * s, int n)
 {
   struct tm d;
-  char wday[3], month[3];
+  char wday[4], month[4];
   int i;
 
   if (n < 30) return (time_t)(-1);

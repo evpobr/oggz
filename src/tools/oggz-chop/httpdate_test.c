@@ -14,6 +14,8 @@ main (int argc, char * argv[])
   char d_out[30];
   time_t t;
 
+  httpdate_init();
+
   INFO ("Parsing date:");
   INFO (d_in);
   t = httpdate_parse (d_in, 30);
@@ -21,7 +23,6 @@ main (int argc, char * argv[])
   if (t == (time_t)-1) {
     FAIL ("Parse error");
   } else {
-    t -= timezone;
     httpdate_snprint (d_out, 30, t);
 
     INFO ("Output date:");
