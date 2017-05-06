@@ -99,6 +99,7 @@ html/
 latex/
 
 CMakeCache.txt
+CMakeSettings.json
 CMakeFiles
 CMakeScripts
 Testing
