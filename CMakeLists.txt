@@ -96,6 +96,10 @@ if(DOXYGEN_FOUND)
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/doc/doxygen.stamp)
 endif()
 
+if (MSVC)
+  add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE)
+endif (MSVC)
+
 set(oggzinclude_HEADERS
   include/oggz/oggz.h
   include/oggz/oggz_comments.h
