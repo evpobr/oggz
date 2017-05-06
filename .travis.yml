@@ -6,6 +6,7 @@ addons:
   apt:
     packages:
       - libogg-dev
+      - doxygen
 dist: trusty
 compiler: gcc
 script:
