@@ -33,9 +33,6 @@ check_function_exists(_stricmp HAVE__STRICMP)
 check_function_exists(timezone HAVE_TIMEZONE)
 check_symbol_exists(_timezone "time.h" HAVE__TIMEZONE)
 check_library_exists(m ceil "" HAVE_LIBM)
-if(HAVE_LIBM)
-  find_library(LIBM m)
-endif()
 test_big_endian(WORDS_BIGENDIAN)
 
 # Large file support
@@ -177,7 +174,7 @@ set(oggz_info_SOURCES
 add_executable(oggz-info ${oggz_info_SOURCES})
 target_link_libraries(oggz-info PRIVATE oggz)
 if(HAVE_LIBM)
-  target_link_libraries(oggz-info PRIVATE ${LIBM})
+  target_link_libraries(oggz-info PRIVATE m)
 endif()
 if(NOT HAVE_GET_OPT)
   target_sources(oggz-info PRIVATE
@@ -336,7 +333,7 @@ set(oggz_chop_SOURCES
 add_executable(oggz-chop ${oggz_chop_SOURCES})
 target_link_libraries(oggz-chop PRIVATE oggz)
 if(HAVE_LIBM)
-  target_link_libraries(oggz-chop PRIVATE ${LIBM})
+  target_link_libraries(oggz-chop PRIVATE m)
 endif()
 target_include_directories(oggz-chop
   PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/tools>)
