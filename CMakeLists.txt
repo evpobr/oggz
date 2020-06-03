@@ -142,7 +142,7 @@ target_include_directories(oggz
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
-target_link_libraries(oggz PUBLIC Xiph::ogg)
+target_link_libraries(oggz PUBLIC Ogg::ogg)
 if(WIN32 AND BUILD_SHARED_LIBS)
   target_sources(oggz PRIVATE win32/liboggz.def)
 endif()
