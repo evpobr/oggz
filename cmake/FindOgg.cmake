@@ -31,6 +31,6 @@ if(Ogg_FOUND)
       INTERFACE_INCLUDE_DIRECTORIES "${OGG_INCLUDE_DIR}"
 	  IMPORTED_LOCATION "${OGG_LIBRARY}")
   endif()
-endif (OGG_FOUND)
+endif()
 
 mark_as_advanced(OGG_INCLUDE_DIR OGG_LIBRARY)
