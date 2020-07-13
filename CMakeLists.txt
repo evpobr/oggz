@@ -346,9 +346,7 @@ target_include_directories(oggz-chop
   PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/liboggz>)
 endif()
 
-install (TARGETS oggz oggz_app oggz_known_codecs oggz-info oggz-comment
-  oggz-dump oggz-merge oggz-rip oggz-validate oggz-basetime oggz-scan oggz-sort
-  oggz-codecs oggz-chop
+install (TARGETS oggz
   RUNTIME DESTINATION       ${CMAKE_INSTALL_BINDIR}
   ARCHIVE DESTINATION       ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION       ${CMAKE_INSTALL_LIBDIR}
