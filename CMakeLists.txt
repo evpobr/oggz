@@ -1,14 +1,17 @@
-cmake_minimum_required(VERSION 3.1..3.17)
+cmake_minimum_required(VERSION 3.1..3.18)
 
-project(oggz VERSION 1.1.1)
+project(oggz VERSION 1.1.1 LANGUAGES C)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+set(CMAKE_C_STANDARD 99)
 
 include(CheckTypeSize)
 include(CheckIncludeFile)
 include(CheckFunctionExists)
 include(CheckSymbolExists)
 include(CheckLibraryExists)
+include(CMakePackageConfigHelpers)
 include(TestBigEndian)
 include(TestLargeFiles)
 include(CTest)
@@ -19,6 +22,12 @@ find_package(Ogg REQUIRED)
 
 set(OGGZ_CONFIG_READ 1)
 set(OGGZ_CONFIG_WRITE 1)
+
+find_library(LIBM_FOUND m)
+if(LIBM_FOUND)
+  list(APPEND CMAKE_REQUIRED_LIBRAIRES m)
+  check_library_exists(m ceil "" HAVE_LIBM)
+endif()
 
 check_include_file(stdint.h HAVE_STDINT_H)
 check_include_file(inttypes.h HAVE_INTTYPES_H)
@@ -32,7 +41,6 @@ check_function_exists(strcasecmp HAVE_STRCASECMP)
 check_function_exists(_stricmp HAVE__STRICMP)
 check_function_exists(timezone HAVE_TIMEZONE)
 check_symbol_exists(_timezone "time.h" HAVE__TIMEZONE)
-check_library_exists(m ceil "" HAVE_LIBM)
 test_big_endian(WORDS_BIGENDIAN)
 
 # Large file support
@@ -74,6 +82,10 @@ set(PACKAGE_TARNAME "${PACKAGE}")
 set(PACKAGE_URL "")
 set(abs_top_srcdir ${CMAKE_CURRENT_SOURCE_DIR})
 set(abs_top_builddir ${CMAKE_CURRENT_BINARY_DIR})
+set(prefix ${CMAKE_INSTALL_PREFIX})
+set(exec_prefix ${CMAKE_INSTALL_PREFIX})
+set(libdir ${CMAKE_INSTALL_FULL_LIBDIR})
+set(includedir ${CMAKE_INSTALL_FULL_INCLUDEDIR})
 
 configure_file(config.cmake.in config.h)
 configure_file(include/oggz/oggz_off_t_generated.h.in include/oggz/oggz_off_t_generated.h)
@@ -139,18 +151,45 @@ set(liboggz_SOURCES
 
 add_library(oggz ${liboggz_SOURCES} ${oggzinclude_HEADERS})
 target_include_directories(oggz
-  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+  )
 target_link_libraries(oggz PUBLIC Ogg::ogg)
-if(WIN32 AND BUILD_SHARED_LIBS)
-  target_sources(oggz PRIVATE win32/liboggz.def)
+
+configure_file(src/liboggz/Version_script.in ${CMAKE_CURRENT_BINARY_DIR}/src/liboggz/Version_script @ONLY)
+if(BUILD_SHARED_LIBS)
+  if(WIN32)
+    target_sources(oggz PRIVATE win32/liboggz.def)
+  elseif(UNIX AND (NOT APPLE))
+    set(VERSION_SCRIPT_FLAG "-Wl,--version-script,${CMAKE_CURRENT_BINARY_DIR}/src/liboggz/Version_script")
+    set(VERSION_SCRIPT_FLAG_SUPPORTED OFF)
+    if(NOT CMAKE_VERSION VERSION_LESS 3.18)
+      include(CheckLinkerFlag)
+      check_linker_flag(VERSION_SCRIPT_FLAG VERSION_SCRIPT_FLAG_SUPPORTED)
+    else()
+      # not implemented
+    endif()
+    if(VERSION_SCRIPT_FLAG_SUPPORTED)
+      if(NOT CMAKE_VERSION VERSION_LESS 3.13)
+        target_link_options(oggz PRIVATE ${VERSION_SCRIPT_FLAG})
+      else()  
+        set_property(TARGET oggz APPEND_STRING PROPERTY
+          LINK_FLAGS ${VERSION_SCRIPT_FLAG})
+      endif()
+    endif()
+  endif()
 endif()
 target_compile_definitions(oggz PRIVATE ${LARGE_FILES_DEFINITIONS})
 set_target_properties (oggz PROPERTIES
   PUBLIC_HEADER "${oggzinclude_HEADERS}"
   SOVERSION 2.6.0
   VERSION 2)
+
+add_library(Oggz::oggz ALIAS oggz)
 
 set(COMMON_SRCS
   src/tools/oggz_tools.h
@@ -164,14 +203,16 @@ set_target_properties (oggz_app PROPERTIES
 target_include_directories(oggz_app
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 
-add_executable(oggz_known_codecs src/tools/oggz-known-codecs.c)
-target_link_libraries(oggz_known_codecs PRIVATE oggz)
+add_executable(oggz-known-codecs src/tools/oggz-known-codecs.c)
+target_include_directories(oggz-known-codecs PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(oggz-known-codecs PRIVATE oggz)
 
 set(oggz_info_SOURCES
   src/tools/oggz-info.c
   src/tools/skeleton.c
   ${COMMON_SRCS})
 add_executable(oggz-info ${oggz_info_SOURCES})
+target_include_directories(oggz-info PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(oggz-info PRIVATE oggz)
 if(HAVE_LIBM)
   target_link_libraries(oggz-info PRIVATE m)
@@ -181,22 +222,27 @@ if(NOT HAVE_GET_OPT)
     win32/getopt.h
 	win32/attgetopt.c)
 target_include_directories(oggz-info
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/win32>
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/liboggz>)
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    win32
+    src/liboggz)
 endif()
 
 set(oggz_comment_SOURCES
   src/tools/oggz-comment.c
   ${COMMON_SRCS})
 add_executable(oggz-comment ${oggz_comment_SOURCES})
+target_include_directories(oggz-comment PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(oggz-comment PRIVATE oggz)
 if(NOT HAVE_GET_OPT)
   target_sources(oggz-comment PRIVATE
     win32/getopt.h
 	win32/attgetopt.c)
 target_include_directories(oggz-comment
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/win32>
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/liboggz>)
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    win32
+    src/liboggz)
 endif()
 
 set(oggz_dump_SOURCES
@@ -209,8 +255,10 @@ if(NOT HAVE_GET_OPT)
     win32/getopt.h
 	win32/attgetopt.c)
 target_include_directories(oggz-dump
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/win32>
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/liboggz>)
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    win32
+    src/liboggz)
 endif()
 
 set(oggz_merge_SOURCES
@@ -223,8 +271,10 @@ if(NOT HAVE_GET_OPT)
     win32/getopt.h
 	win32/attgetopt.c)
 target_include_directories(oggz-merge
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/win32>
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/liboggz>)
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    win32
+    src/liboggz)
 endif()
 
 set(oggz_rip_SOURCES
@@ -237,8 +287,10 @@ if(NOT HAVE_GET_OPT)
     win32/getopt.h
 	win32/attgetopt.c)
 target_include_directories(oggz-rip
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/win32>
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/liboggz>)
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    win32
+    src/liboggz)
 endif()
 
 set(oggz_validate_SOURCES
@@ -251,8 +303,10 @@ if(NOT HAVE_GET_OPT)
     win32/getopt.h
 	win32/attgetopt.c)
 target_include_directories(oggz-validate
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/win32>
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/liboggz>)
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+      win32
+      src/liboggz)
 endif()
 
 set(oggz_basetime_SOURCES
@@ -265,8 +319,10 @@ if(NOT HAVE_GET_OPT)
     win32/getopt.h
 	win32/attgetopt.c)
 target_include_directories(oggz-basetime
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/win32>
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/liboggz>)
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    win32
+    src/liboggz)
 endif()
 
 set(oggz_scan_SOURCES
@@ -277,10 +333,12 @@ target_link_libraries(oggz-scan PRIVATE oggz)
 if(NOT HAVE_GET_OPT)
   target_sources(oggz-scan PRIVATE
     win32/getopt.h
-	win32/attgetopt.c)
+    win32/attgetopt.c)
 target_include_directories(oggz-scan
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/win32>
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/liboggz>)
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    win32
+    src/liboggz)
 endif()
 
 set(oggz_sort_SOURCES
@@ -293,8 +351,10 @@ if(NOT HAVE_GET_OPT)
     win32/getopt.h
 	win32/attgetopt.c)
 target_include_directories(oggz-sort
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/win32>
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/liboggz>)
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+      win32
+      src/liboggz)
 endif()
 
 set(oggz_codecs_SOURCES
@@ -308,9 +368,13 @@ if(NOT HAVE_GET_OPT)
     win32/getopt.h
 	win32/attgetopt.c)
 target_include_directories(oggz-codecs
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/win32>
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/liboggz>)
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+      win32
+      src/liboggz)
 endif()
+
+configure_file(src/tools/oggz-diff.in ${CMAKE_CURRENT_BINARY_DIR}/src/tools/oggz-diff @ONLY)
 
 set(oggz_chop_SOURCES
   src/tools/oggz-chop/cgi.h
@@ -336,167 +400,254 @@ if(HAVE_LIBM)
   target_link_libraries(oggz-chop PRIVATE m)
 endif()
 target_include_directories(oggz-chop
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/tools>)
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    win32
+    src/tools
+    src/liboggz)
 if(NOT HAVE_GET_OPT)
   target_sources(oggz-chop PRIVATE
     win32/getopt.h
 	win32/attgetopt.c)
-target_include_directories(oggz-chop
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/win32>
-  PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/liboggz>)
 endif()
 
-install (TARGETS oggz
-  RUNTIME DESTINATION       ${CMAKE_INSTALL_BINDIR}
-  ARCHIVE DESTINATION       ${CMAKE_INSTALL_LIBDIR}
-  LIBRARY DESTINATION       ${CMAKE_INSTALL_LIBDIR}
-  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/oggz)
+install(TARGETS
+  oggz_app
+  oggz-chop
+  oggz-codecs
+  oggz-comment
+  oggz-dump
+  oggz-info
+  oggz-known-codecs
+  oggz-merge
+  oggz-rip
+  oggz-scan
+  oggz-sort
+  oggz-validate
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT TOOLS)
+
+install(
+  PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/src/tools/oggz-diff COMPONENT TOOLS
+  DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+install(TARGETS oggz
+  EXPORT OggzTargets
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT LIBRARY
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT DEV
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT DEV
+  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/oggz COMPONENT DEV)
+
+set(CMAKE_INSTALL_CONFIGDIR ${CMAKE_INSTALL_LIBDIR}/cmake/Oggz)
+
+install(EXPORT OggzTargets
+  DESTINATION ${CMAKE_INSTALL_CONFIGDIR}
+  NAMESPACE Oggz::
+)
+
+configure_file(oggz.pc.in oggz.pc @ONLY)
+install(
+  FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/oggz.pc
+  DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+
+
+configure_package_config_file(${PROJECT_SOURCE_DIR}/cmake/OggzConfig.cmake.in
+    ${PROJECT_BINARY_DIR}/OggzConfig.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_CONFIGDIR}
+)
+
+write_basic_package_version_file(${PROJECT_BINARY_DIR}/OggzConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(
+  FILES
+    ${PROJECT_BINARY_DIR}/OggzConfig.cmake
+    ${PROJECT_BINARY_DIR}/OggzConfigVersion.cmake
+  DESTINATION ${CMAKE_INSTALL_CONFIGDIR}
+  COMPONENT DEV
+)
+
 if(DOXYGEN_FOUND)
   install(DIRECTORY
     ${CMAKE_CURRENT_BINARY_DIR}/doc/html
     ${CMAKE_CURRENT_BINARY_DIR}/doc/latex
   DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/liboggz)
 endif()
-if(UNIX)
+
 set(man_MANS
-  ${CMAKE_CURRENT_SOURCE_DIR}/doc/oggz.1
-  ${CMAKE_CURRENT_SOURCE_DIR}/doc/oggz-diff.1
-  ${CMAKE_CURRENT_SOURCE_DIR}/doc/oggz-dump.1
-  ${CMAKE_CURRENT_SOURCE_DIR}/doc/oggz-info.1
-  ${CMAKE_CURRENT_SOURCE_DIR}/doc/oggz-known-codecs.1
-  ${CMAKE_CURRENT_SOURCE_DIR}/doc/oggz-merge.1
-  ${CMAKE_CURRENT_SOURCE_DIR}/doc/oggz-chop.1
-  ${CMAKE_CURRENT_SOURCE_DIR}/doc/oggz-sort.1
-  ${CMAKE_CURRENT_SOURCE_DIR}/doc/oggz-rip.1
-  ${CMAKE_CURRENT_SOURCE_DIR}/doc/oggz-comment.1
-  ${CMAKE_CURRENT_SOURCE_DIR}/doc/oggz-scan.1
-  ${CMAKE_CURRENT_SOURCE_DIR}/doc/oggz-validate.1
-  ${CMAKE_CURRENT_SOURCE_DIR}/doc/oggz-codecs.1)
-  install(FILES ${man_MANS} DESTINATION ${CMAKE_INSTALL_MANDIR})
-endif()
+  doc/oggz.1
+  doc/oggz-diff.1
+  doc/oggz-dump.1
+  doc/oggz-info.1
+  doc/oggz-known-codecs.1
+  doc/oggz-merge.1
+  doc/oggz-chop.1
+  doc/oggz-sort.1
+  doc/oggz-rip.1
+  doc/oggz-comment.1
+  doc/oggz-scan.1
+  doc/oggz-validate.1
+  doc/oggz-codecs.1)
+  install(FILES ${man_MANS} DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 
 add_executable(identity src/examples/identity.c)
+target_include_directories(identity PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(identity PRIVATE oggz)
 
 add_executable(modify-headers src/examples/modify-headers.c)
+target_include_directories(modify-headers PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(modify-headers PRIVATE oggz)
 
 add_executable(rewrite-pages src/examples/rewrite-pages.c)
+target_include_directories(rewrite-pages PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(rewrite-pages PRIVATE oggz)
 
 add_executable(fix-eos src/examples/fix-eos.c)
+target_include_directories(fix-eos PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(fix-eos PRIVATE oggz)
 
 add_executable(read-file src/examples/read-file.c)
+target_include_directories(read-file PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(read-file PRIVATE oggz)
 
 add_executable(read-io src/examples/read-io.c)
+target_include_directories(read-io PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(read-io PRIVATE oggz)
 
 add_executable(dump-comments src/examples/dump-comments.c)
+target_include_directories(dump-comments PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(dump-comments PRIVATE oggz)
 
 add_executable(write-feed src/examples/write-feed.c)
+target_include_directories(write-feed PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(write-feed PRIVATE oggz)
 
 add_executable(write-hungry src/examples/write-hungry.c)
+target_include_directories(write-hungry PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(write-hungry PRIVATE oggz)
 
 if(BUILD_TESTING)
 
   add_executable(comment-test src/tests/comment-test.c)
+  target_include_directories(comment-test PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(comment-test PRIVATE oggz)
   add_test(NAME comment-test COMMAND $<TARGET_FILE:comment-test>)
 
   add_executable(write-bad-guard src/tests/write-bad-guard.c)
+  target_include_directories(write-bad-guard PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(write-bad-guard PRIVATE oggz)
   add_test(NAME write-bad-guard COMMAND $<TARGET_FILE:write-bad-guard>)
 
   add_executable(write-unmarked-guard src/tests/write-unmarked-guard.c)
+  target_include_directories(write-unmarked-guard PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(write-unmarked-guard PRIVATE oggz)
   add_test(NAME write-unmarked-guard COMMAND $<TARGET_FILE:write-unmarked-guard>)
 
   add_executable(write-recursive src/tests/write-recursive.c)
+  target_include_directories(write-recursive PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(write-recursive PRIVATE oggz)
   add_test(NAME write-recursive COMMAND $<TARGET_FILE:write-recursive>)
 
   add_executable(write-bad-bytes src/tests/write-bad-bytes.c)
+  target_include_directories(write-bad-bytes PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(write-bad-bytes PRIVATE oggz)
   add_test(NAME write-bad-bytes COMMAND $<TARGET_FILE:write-bad-bytes>)
 
   add_executable(write-bad-bos src/tests/write-bad-bos.c)
+  target_include_directories(write-bad-bos PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(write-bad-bos PRIVATE oggz)
   add_test(NAME write-bad-bos COMMAND $<TARGET_FILE:write-bad-bos>)
 
   add_executable(write-dup-bos src/tests/write-dup-bos.c)
+  target_include_directories(write-dup-bos PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(write-dup-bos PRIVATE oggz)
   add_test(NAME write-dup-bos COMMAND $<TARGET_FILE:write-dup-bos>)
 
   add_executable(write-bad-eos src/tests/write-bad-eos.c)
+  target_include_directories(write-bad-eos PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(write-bad-eos PRIVATE oggz)
   add_test(NAME write-bad-eos COMMAND $<TARGET_FILE:write-bad-eos>)
 
   add_executable(write-bad-granulepos src/tests/write-bad-granulepos.c)
+  target_include_directories(write-bad-granulepos PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(write-bad-granulepos PRIVATE oggz)
   add_test(NAME write-bad-granulepos COMMAND $<TARGET_FILE:write-bad-granulepos>)
 
   add_executable(write-bad-packetno src/tests/write-bad-packetno.c)
+  target_include_directories(write-bad-packetno PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(write-bad-packetno PRIVATE oggz)
   add_test(NAME write-bad-packetno COMMAND $<TARGET_FILE:write-bad-packetno>)
 
   add_executable(write-bad-serialno src/tests/write-bad-serialno.c)
+  target_include_directories(write-bad-serialno PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(write-bad-serialno PRIVATE oggz)
   add_test(NAME write-bad-serialno COMMAND $<TARGET_FILE:write-bad-serialno>)
 
   add_executable(write-prefix src/tests/write-prefix.c)
+  target_include_directories(write-prefix PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(write-prefix PRIVATE oggz)
   add_test(NAME write-prefix COMMAND $<TARGET_FILE:write-prefix>)
 
   add_executable(write-suffix src/tests/write-suffix.c)
+  target_include_directories(write-suffix PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(write-suffix PRIVATE oggz)
   add_test(NAME write-suffix COMMAND $<TARGET_FILE:write-suffix>)
 
   add_executable(read-generated src/tests/read-generated.c)
+  target_include_directories(read-generated PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(read-generated PRIVATE oggz)
   add_test(NAME read-generated COMMAND $<TARGET_FILE:read-generated>)
 
   add_executable(read-stop-ok src/tests/read-stop-ok.c)
   target_link_libraries(read-stop-ok PRIVATE oggz)
+  target_include_directories(read-stop-ok PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   add_test(NAME read-stop-ok COMMAND $<TARGET_FILE:read-stop-ok>)
 
   add_executable(read-stop-err src/tests/read-stop-err.c)
+  target_include_directories(read-stop-err PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(read-stop-err PRIVATE oggz)
   add_test(NAME read-stop-err COMMAND $<TARGET_FILE:read-stop-err>)
 
   add_executable(io-count src/tests/io-count.c)
+  target_include_directories(io-count PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(io-count PRIVATE oggz)
   add_test(NAME io-count COMMAND $<TARGET_FILE:io-count>)
 
   add_executable(io-read src/tests/io-read.c)
+  target_include_directories(io-read PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(io-read PRIVATE oggz)
   add_test(NAME io-read COMMAND $<TARGET_FILE:io-read>)
 
   add_executable(io-run src/tests/io-run.c)
+  target_include_directories(io-run PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(io-run PRIVATE oggz)
   add_test(NAME io-run COMMAND $<TARGET_FILE:io-run>)
 
   add_executable(io-seek src/tests/io-seek.c)
+  target_include_directories(io-seek PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(io-seek PRIVATE oggz)
   add_test(NAME io-seek COMMAND $<TARGET_FILE:io-seek>)
 
   add_executable(io-write src/tests/io-write.c)
+  target_include_directories(io-write PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(io-write PRIVATE oggz)
   add_test(NAME io-write COMMAND $<TARGET_FILE:io-write>)
 
   add_executable(io-read-single src/tests/io-read-single.c)
+  target_include_directories(io-read-single PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(io-read-single PRIVATE oggz)
   add_test(NAME io-read-single COMMAND $<TARGET_FILE:io-read-single>)
 
   add_executable(io-write-flush src/tests/io-write-flush.c)
+  target_include_directories(io-write-flush PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(io-write-flush PRIVATE oggz)
   add_test(NAME io-write-flush COMMAND $<TARGET_FILE:io-write-flush>)
 
   add_executable(seek-stress src/tests/seek-stress.c)
+  target_include_directories(seek-stress PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(seek-stress PRIVATE oggz)
 
   set(httpdate_test_SOURCES
@@ -505,7 +656,9 @@ if(BUILD_TESTING)
     src/tools/oggz-chop/httpdate_test.c)
   add_executable(httpdate_test ${httpdate_test_SOURCES})
   target_include_directories(httpdate_test
-    PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/tests>)
+    PRIVATE
+      ${CMAKE_CURRENT_BINARY_DIR}
+      src/tests)
   target_link_libraries(httpdate_test PRIVATE oggz)
   add_test(NAME httpdate_test COMMAND $<TARGET_FILE:httpdate_test>)
 
